@@ -69,7 +69,7 @@ Sobe um cluster Kubernetes de 3 nós (1 control-plane + 2 workers) na AWS do zer
 ## Decisões técnicas relevantes
 
 **SSM em vez de SSH**
-Nenhuma porta 22 aberta, nenhuma chave `.pem` distribuída. O acesso às instâncias usa o SSM Agent já instalado via Ansible e a IAM role `AmazonSSMManagedInstanceCore`. Elimina a superfície de ataque do bastião.
+Nenhuma porta 22 aberta, nenhuma chave `.pem` distribuída. O acesso às instâncias usa o SSM Agent pré-instalado nas AMIs Ubuntu e a IAM role `AmazonSSMManagedInstanceCore`. Elimina a superfície de ataque do bastião.
 
 **Terragrunt para DRY**
 Em vez de duplicar `provider.tf` e `backend.tf` em cada módulo, o `root.hcl` os gera automaticamente. Adicionar um novo ambiente exige criar um único `terragrunt.hcl` referenciando o módulo.
@@ -197,7 +197,6 @@ kubectl get nodes
 | `scripts/k8s-connect.sh start` | Inicia SSM port forward, copia kubeconfig e testa conexão |
 | `scripts/k8s-connect.sh stop` | Encerra o port forward |
 | `scripts/k8s-connect.sh status` | Verifica se o túnel está ativo e lista nodes |
-| `scripts/rename-nodes.sh` | Renomeia nodes com IPs para nomes amigáveis (master-1, worker-1...) |
 
 ---
 
@@ -205,11 +204,11 @@ kubectl get nodes
 
 ```
 k8sadmin-aws/
-├── root.hcl                        # Config global do Terragrunt (provider, backend, tags)
-├── root.example.hcl                # Template para configuração inicial
+├── root.hcl                        # Config global do Terragrunt — gerado a partir do template (gitignored)
+├── root.example.hcl                # Template: copiar para root.hcl e ajustar
 │
 ├── bootstrap/                      # Executar uma vez, localmente, antes do CI/CD
-│   ├── root.hcl                    # root.hcl sem DynamoDB lock (evita dependência circular)
+│   ├── root.hcl                    # Config do Terragrunt para o bootstrap (gitignored)
 │   ├── dynamodb/                   # Cria a tabela DynamoDB de lock do tfstate
 │   └── oidc/                       # Cria IAM role + OIDC provider para GitHub Actions
 │
@@ -217,11 +216,9 @@ k8sadmin-aws/
 │   ├── aws-vpc/                    # VPC + subnet pública + IGW + route table
 │   ├── aws-security-group/         # Security Group para o cluster K8s
 │   ├── aws-ec2-instance/           # EC2 com IMDSv2, EBS encriptado, monitoring
-│   ├── aws-iam-ec2/                # IAM Role + Instance Profile (SSM + ECR)
+│   ├── aws-iam-ec2/                # IAM Role + Instance Profile (SSM)
 │   ├── aws-iam-oidc-github/        # OIDC provider + Role para GitHub Actions
-│   ├── aws-s3-bucket/              # S3 com versionamento, encryption e logging
-│   ├── aws-dynamodb-lock/          # Tabela DynamoDB para lock do Terraform state
-│   └── aws-keypair/                # Key pair (opcional)
+│   └── aws-dynamodb-lock/          # Tabela DynamoDB para lock do Terraform state
 │
 ├── environments/
 │   └── dev/                        # Ambiente de desenvolvimento
@@ -234,11 +231,11 @@ k8sadmin-aws/
 │   ├── ansible.cfg
 │   ├── inventory/
 │   │   ├── aws_ec2.example.yml     # Template do inventário dinâmico
-│   │   └── aws_ec2.yml             # Inventário dinâmico EC2 via SSM (ignorado pelo git)
+│   │   └── aws_ec2.yml             # Inventário dinâmico EC2 via SSM (gitignored)
 │   ├── group_vars/
 │   │   ├── all.yml                 # k8s_version
-│   │   ├── master.yml              # node_role: master
-│   │   └── workers.yml             # node_role: worker
+│   │   ├── master.yml              # Vars do grupo master
+│   │   └── workers.yml             # Vars do grupo workers
 │   ├── playbooks/
 │   │   ├── site.yml                # Playbook principal (common + containerd + master + worker)
 │   │   └── reset.yml               # Destrói e limpa o cluster
@@ -249,8 +246,7 @@ k8sadmin-aws/
 │       └── k8s_worker/             # kubeadm join
 │
 ├── scripts/
-│   ├── k8s-connect.sh              # Gerencia acesso ao cluster via SSM port forward
-│   └── rename-nodes.sh             # Renomeia nodes do cluster para nomes amigáveis
+│   └── k8s-connect.sh              # Gerencia acesso ao cluster via SSM port forward
 │
 └── .github/
     └── workflows/
