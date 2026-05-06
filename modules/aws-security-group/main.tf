@@ -20,14 +20,14 @@ resource "aws_security_group" "this" {
   }
 
   # ------------------------------------------------------------
-  # etcd (control plane)
+  # etcd (control plane) — restrito a instâncias do próprio SG
   # ------------------------------------------------------------
   ingress {
     description = "etcd server client API"
     from_port   = 2379
     to_port     = 2380
     protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
+    self        = true
   }
 
   # ------------------------------------------------------------

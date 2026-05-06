@@ -1,7 +1,10 @@
 locals {
-  aws_region  = "us-east-1"
-  project     = "k8sadmin-aws"
-  environment = "dev"
+  aws_region = "us-east-1"
+  project    = "k8sadmin-aws"
+
+  # Extrai o ambiente do path do child: environments/<env>/...
+  path_parts  = split("/", path_relative_to_include())
+  environment = local.path_parts[1]
 
   tf_version  = "~> 1.10"
   aws_version = "~> 5.0"
@@ -62,16 +65,15 @@ terraform {
 
   extra_arguments "provider_cache" {
     commands = [
-        "init",
-        "plan",
-        "apply",
-        "destroy",
-        "validate"
+      "init",
+      "plan",
+      "apply",
+      "destroy",
+      "validate"
     ]
 
     env_vars = {
-        TF_PLUGIN_CACHE_DIR = pathexpand("~/.terraform-plugin-cache")
+      TF_PLUGIN_CACHE_DIR = pathexpand("~/.terraform-plugin-cache")
     }
   }
-  
 }

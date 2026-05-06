@@ -24,7 +24,7 @@ jobs:
       cancel-in-progress: true
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4 
+        uses: actions/checkout@v4
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
@@ -44,5 +44,9 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
           role-session-name: GitHubActions-${{ github.run_id }}
-          
-      
+
+      - name: Terragrunt ${{ github.event.inputs.actions }}
+        working-directory: environments/dev
+        run: terragrunt run-all ${{ github.event.inputs.actions }} --terragrunt-non-interactive
+        env:
+          TF_INPUT: "false"

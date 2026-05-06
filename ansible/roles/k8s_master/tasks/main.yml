@@ -1,0 +1,37 @@
+- name: Verificar se cluster já foi inicializado
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeadm_conf
+
+- name: Inicializar cluster
+  command: kubeadm init --pod-network-cidr=10.10.0.0/16 --node-name={{ tags.Name }}
+  register: kubeadm_init
+  when: not kubeadm_conf.stat.exists
+
+- name: Criar kube config para root
+  shell: |
+    mkdir -p /root/.kube
+    cp -i /etc/kubernetes/admin.conf /root/.kube/config
+    chown root:root /root/.kube/config
+  when: not kubeadm_conf.stat.exists
+
+- name: Criar kube config para usuário ubuntu
+  shell: |
+    mkdir -p /home/ubuntu/.kube
+    cp /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
+    chown ubuntu:ubuntu /home/ubuntu/.kube/config
+  when: not kubeadm_conf.stat.exists
+
+- name: Instalar CNI (Flannel)
+  command: kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+  environment:
+    KUBECONFIG: /root/.kube/config
+  when: not kubeadm_conf.stat.exists
+
+- name: Gerar comando join
+  command: kubeadm token create --print-join-command
+  register: join_command
+
+- name: Salvar join
+  set_fact:
+    kube_join_cmd: "{{ join_command.stdout }}"

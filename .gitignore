@@ -1,4 +1,9 @@
 # ------------------------------------------------------------
+# Configurações locais (usar os arquivos .example como base)
+# ------------------------------------------------------------
+root.hcl
+
+# ------------------------------------------------------------
 # Terraform
 # ------------------------------------------------------------
 **/.terraform/*
@@ -38,7 +43,7 @@ terragrunt-debug.tfvars.json
 inventory.ini
 inventory.yaml
 host_vars/
-group_vars/
+ansible/inventory/aws_ec2.yml
 
 # ------------------------------------------------------------
 # Logs
@@ -81,3 +86,5 @@ node_modules/
 # ------------------------------------------------------------
 .kube/
 kubeconfig
+
+ansible-env/

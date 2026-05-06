@@ -1,0 +1,19 @@
+# playbooks/reset.yml
+- name: Reset cluster
+  hosts: all
+  become: yes
+  tasks:
+    - name: Reset kubeadm
+      command: kubeadm reset -f
+      ignore_errors: yes
+
+    - name: Limpar CNI
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/cni/net.d
+        - /root/.kube
+
+    - name: Limpar iptables
+      shell: iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X

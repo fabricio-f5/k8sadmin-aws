@@ -1,0 +1,8 @@
+- name: Verificar se node já está no cluster
+  stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_conf
+
+- name: Join no cluster
+  command: "{{ hostvars[groups['master'][0]].kube_join_cmd }} --node-name={{ tags.Name }}"
+  when: not kubelet_conf.stat.exists

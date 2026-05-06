@@ -5,12 +5,6 @@ variable "instances" {
   }))
 }
 
-variable "instance_name" {
-  description = "Prefixo base para nome das instâncias (opcional)"
-  type        = string
-  default     = "ec2"
-}
-
 variable "iam_instance_profile" {
   description = "Instance Profile associado à EC2"
   type        = string

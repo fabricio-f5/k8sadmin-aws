@@ -40,7 +40,7 @@ variable "policy_arns" {
 }
 
 variable "thumbprint_list" {
-  description = ""
+  description = "Thumbprints TLS do endpoint OIDC do GitHub. Atualizar se o certificado raiz da cadeia mudar."
   type        = list(string)
   default     = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
 }
