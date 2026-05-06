@@ -7,11 +7,15 @@ terraform {
 }
 
 inputs = {
+  # O OIDC provider já existe nesta conta AWS (global por conta)
+  create_oidc_provider = false
+
   # Repositório GitHub no formato "org/repo"
   github_repo = "fabricio-f5/k8sadmin-aws"
 
-  # Restringe a role apenas à branch main
-  github_ref = "ref:refs/heads/main"
+  # dev: qualquer branch pode assumir a role
+  # prod: trocar por "ref:refs/heads/main" para restringir
+  github_ref = "*"
 
   role_name = "k8sadmin-github-actions"
 
