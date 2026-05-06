@@ -1,4 +1,3 @@
-```yaml
 name: k8sadmin-aws
 
 on:
@@ -69,7 +68,7 @@ jobs:
           role-session-name: GitHubActions-${{ github.run_id }}
 
       # -----------------------------
-      # 🔥 GERA O root.hcl DINAMICAMENTE
+      # GERA O root.hcl DINAMICAMENTE
       # -----------------------------
       - name: Generate root.hcl
         run: |
@@ -103,9 +102,9 @@ jobs:
       # -----------------------------
       - name: Debug structure
         run: |
-          echo "📁 Estrutura do repo:"
+          echo "Estrutura do repo:"
           ls -la
-          echo "📄 root.hcl:"
+          echo "root.hcl:"
           cat root.hcl
 
       # -----------------------------
@@ -133,7 +132,7 @@ jobs:
         run: terragrunt run --all -- plan -destroy
 
   # -----------------------------------------------------------------------
-  # 🔥 DESTROY COM APROVAÇÃO
+  #  DESTROY COM APROVAÇÃO
   # -----------------------------------------------------------------------
   destroy:
     name: Destroy (requires approval)
@@ -203,4 +202,4 @@ jobs:
       - name: Terragrunt destroy
         working-directory: environments/dev
         run: terragrunt run --all destroy
-```
+
