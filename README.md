@@ -55,7 +55,7 @@ Sobe um cluster Kubernetes de 3 nós (1 control-plane + 2 workers) na AWS do zer
 
 | Camada | Tecnologia | Versão |
 |---|---|---|
-| Infra como código | Terraform + Terragrunt | ~1.10 / 0.67 |
+| Infra como código | Terraform + Terragrunt | ~1.10 / 1.0.3 |
 | Cloud | AWS (EC2, VPC, IAM, S3, SSM) | Provider ~5.0 |
 | Config management | Ansible | 10.x |
 | Container runtime | containerd | distro |
@@ -86,22 +86,26 @@ O tfstate fica num S3 com `encrypt = true`, versionamento habilitado e acesso p�
 **Idempotência no Ansible**
 `kubeadm init` e `kubeadm join` verificam `/etc/kubernetes/admin.conf` e `/etc/kubernetes/kubelet.conf` antes de executar. Reexecutar o playbook num cluster já configurado não causa regressão.
 
+**Bootstrap sem lock circular**
+O diretório `bootstrap/` tem seu próprio `root.hcl` sem `dynamodb_table` — ele cria a tabela DynamoDB de lock e a IAM role OIDC sem depender de nada que ainda não existe. O `root.hcl` principal só ativa o lock depois que o bootstrap rodou.
+
 ---
 
 ## Pré-requisitos
 
 ### Local
 - [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.10
-- [Terragrunt](https://terragrunt.gruntwork.io/docs/getting-started/install/) >= 0.67
+- [Terragrunt](https://terragrunt.gruntwork.io/docs/getting-started/install/) >= 1.0.3
 - [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/) >= 10.x (via pip)
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) >= 2
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [session-manager-plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html)
 
 ### AWS
-- Conta AWS com permissões para criar EC2, VPC, IAM, S3
-- S3 bucket criado para o Terraform state (configurar em `root.hcl`)
-- OIDC provider configurado para o GitHub Actions (módulo `aws-iam-oidc-github`)
+- Conta AWS com permissões para criar EC2, VPC, IAM, S3, DynamoDB
+- Credenciais configuradas localmente (`aws configure` ou variáveis de ambiente)
+
+> O S3 bucket para o tfstate e a tabela DynamoDB de lock são criados automaticamente pelo Terragrunt (`TG_BACKEND_BOOTSTRAP=true`). A IAM role OIDC para o GitHub Actions é criada pelo step de bootstrap abaixo.
 
 ---
 
@@ -110,7 +114,7 @@ O tfstate fica num S3 com `encrypt = true`, versionamento habilitado e acesso p�
 ### 1. Clonar e configurar
 
 ```bash
-git clone https://github.com/seu-usuario/k8sadmin-aws.git
+git clone https://github.com/fabricio-f5/k8sadmin-aws.git
 cd k8sadmin-aws
 ```
 
@@ -140,7 +144,24 @@ pip install ansible boto3 botocore
 ansible-galaxy collection install -r requirements.yml
 ```
 
-### 3. Provisionar a infraestrutura
+### 3. Bootstrap (executar uma vez, localmente)
+
+O bootstrap cria a tabela DynamoDB de lock e a IAM role OIDC para o GitHub Actions. Deve ser executado localmente com credenciais AWS antes de qualquer `apply` na infra principal.
+
+```bash
+# Criar a tabela DynamoDB de lock do Terraform state
+cd bootstrap/dynamodb
+terragrunt apply
+
+# Criar a IAM role + OIDC provider para o GitHub Actions
+cd ../oidc
+terragrunt apply
+```
+
+Após o apply, copie o ARN da role exibido no output e adicione como secret `AWS_ROLE_ARN` no repositório GitHub:
+**Settings → Secrets and variables → Actions → New repository secret**
+
+### 4. Provisionar a infraestrutura
 
 ```bash
 # Via GitHub Actions (recomendado):
@@ -148,10 +169,10 @@ ansible-galaxy collection install -r requirements.yml
 
 # Ou localmente:
 cd environments/dev
-terragrunt run-all apply
+terragrunt run --all apply
 ```
 
-### 4. Configurar o cluster Kubernetes
+### 5. Configurar o cluster Kubernetes
 
 ```bash
 cd ansible
@@ -159,7 +180,7 @@ source ../ansible-env/bin/activate
 ansible-playbook playbooks/site.yml
 ```
 
-### 5. Acessar o cluster
+### 6. Acessar o cluster
 
 ```bash
 ./scripts/k8s-connect.sh start
@@ -187,6 +208,11 @@ k8sadmin-aws/
 ├── root.hcl                        # Config global do Terragrunt (provider, backend, tags)
 ├── root.example.hcl                # Template para configuração inicial
 │
+├── bootstrap/                      # Executar uma vez, localmente, antes do CI/CD
+│   ├── root.hcl                    # root.hcl sem DynamoDB lock (evita dependência circular)
+│   ├── dynamodb/                   # Cria a tabela DynamoDB de lock do tfstate
+│   └── oidc/                       # Cria IAM role + OIDC provider para GitHub Actions
+│
 ├── modules/                        # Módulos Terraform reutilizáveis
 │   ├── aws-vpc/                    # VPC + subnet pública + IGW + route table
 │   ├── aws-security-group/         # Security Group para o cluster K8s
@@ -194,6 +220,7 @@ k8sadmin-aws/
 │   ├── aws-iam-ec2/                # IAM Role + Instance Profile (SSM + ECR)
 │   ├── aws-iam-oidc-github/        # OIDC provider + Role para GitHub Actions
 │   ├── aws-s3-bucket/              # S3 com versionamento, encryption e logging
+│   ├── aws-dynamodb-lock/          # Tabela DynamoDB para lock do Terraform state
 │   └── aws-keypair/                # Key pair (opcional)
 │
 ├── environments/
@@ -207,9 +234,9 @@ k8sadmin-aws/
 │   ├── ansible.cfg
 │   ├── inventory/
 │   │   ├── aws_ec2.example.yml     # Template do inventário dinâmico
-│   │   └── aws_ec2.yml             # Inventário dinâmico EC2 via SSM (não comitar dados sensíveis)
+│   │   └── aws_ec2.yml             # Inventário dinâmico EC2 via SSM (ignorado pelo git)
 │   ├── group_vars/
-│   │   ├── all.yml                 # k8s_version, kiro_install_url
+│   │   ├── all.yml                 # k8s_version
 │   │   ├── master.yml              # node_role: master
 │   │   └── workers.yml             # node_role: worker
 │   ├── playbooks/
@@ -219,8 +246,7 @@ k8sadmin-aws/
 │       ├── common/                 # Sistema base: kernel modules, sysctl, K8s packages
 │       ├── containerd/             # Runtime de container com SystemdCgroup
 │       ├── k8s_master/             # kubeadm init, kubeconfig, Flannel CNI
-│       ├── k8s_worker/             # kubeadm join
-│       └── kiro/                   # Agente Kiro (opcional)
+│       └── k8s_worker/             # kubeadm join
 │
 ├── scripts/
 │   ├── k8s-connect.sh              # Gerencia acesso ao cluster via SSM port forward
@@ -228,22 +254,33 @@ k8sadmin-aws/
 │
 └── .github/
     └── workflows/
-        └── k8sadmin-aws.yaml       # Pipeline: plan / apply / destroy via OIDC
+        └── k8sadmin-aws.yaml       # Pipeline: plan / apply / plan-destroy / destroy via OIDC
 ```
 
 ---
 
 ## CI/CD
 
-O workflow `.github/workflows/k8sadmin-aws.yaml` é acionado manualmente (`workflow_dispatch`) com três opções:
+O workflow `.github/workflows/k8sadmin-aws.yaml` é acionado manualmente (`workflow_dispatch`) com quatro opções:
 
 | Ação | O que faz |
 |---|---|
 | `plan` | Mostra o que será criado/alterado sem aplicar |
 | `apply` | Provisiona ou atualiza a infraestrutura |
-| `destroy` | Destrói todos os recursos |
+| `plan-destroy` | Mostra o que seria destruído sem executar |
+| `destroy` | Destrói todos os recursos (requer aprovação manual) |
 
-A autenticação com a AWS usa **OIDC** — o GitHub gera um token JWT que a AWS valida diretamente, sem nenhuma chave de acesso armazenada. Configurar o secret `AWS_ROLE_ARN` com o ARN da role criada pelo módulo `aws-iam-oidc-github`.
+A autenticação com a AWS usa **OIDC** — o GitHub gera um token JWT que a AWS valida diretamente, sem nenhuma chave de acesso armazenada. Configure o secret `AWS_ROLE_ARN` com o ARN da role criada no step de bootstrap.
+
+### Proteção do destroy
+
+O job `destroy` usa um **GitHub Environment** com aprovação obrigatória. Antes de usar, configure:
+
+1. No GitHub: **Settings → Environments → New environment** → nome: `destroy`
+2. Marque **Required reviewers** e adicione os aprovadores
+3. Salve a proteção
+
+Ao disparar o workflow com `destroy`, o GitHub pausará o job e enviará notificação aos revisores. Somente após aprovação a destruição é executada.
 
 ---
 

@@ -22,8 +22,9 @@ remote_state {
     bucket       = "k8sadmin-aws-tfstate"
     key          = "${path_relative_to_include()}/terraform.tfstate"
     region       = local.aws_region
-    encrypt      = true
-    use_lockfile = true
+    encrypt        = true
+    use_lockfile   = false
+    dynamodb_table = "terraform-state-lock"
   }
 }
 

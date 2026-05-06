@@ -14,9 +14,15 @@ on:
           - plan-destroy
           - destroy
 
+env:
+  TF_INPUT: "false"
+  TF_LOG: "ERROR"
+  TG_NON_INTERACTIVE: "true"
+  TG_BACKEND_BOOTSTRAP: "true"   # cria S3 bucket e DynamoDB automaticamente
+
 jobs:
   # -----------------------------------------------------------------------
-  # plan / apply / plan-destroy — execução direta, sem aprovação
+  # plan / apply / plan-destroy — sem aprovação
   # -----------------------------------------------------------------------
   deploy:
     name: ${{ github.event.inputs.actions }}
@@ -40,7 +46,7 @@ jobs:
 
       - name: Set up Terragrunt
         run: |
-          curl -Lo terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.67.0/terragrunt_linux_amd64
+          curl -Lo terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v1.0.3/terragrunt_linux_amd64
           chmod +x terragrunt
           sudo mv terragrunt /usr/local/bin/
           terragrunt --version
@@ -55,30 +61,22 @@ jobs:
       - name: Terragrunt plan
         if: github.event.inputs.actions == 'plan'
         working-directory: environments/dev
-        run: terragrunt run-all plan --terragrunt-non-interactive
-        env:
-          TF_INPUT: "false"
+        run: terragrunt run --all plan
 
       - name: Terragrunt apply
         if: github.event.inputs.actions == 'apply'
         working-directory: environments/dev
-        run: terragrunt run-all apply --terragrunt-non-interactive
-        env:
-          TF_INPUT: "false"
+        run: terragrunt run --all apply
 
       - name: Terragrunt plan-destroy
         if: github.event.inputs.actions == 'plan-destroy'
         working-directory: environments/dev
-        run: terragrunt run-all plan -destroy --terragrunt-non-interactive
-        env:
-          TF_INPUT: "false"
+        run: terragrunt run --all -- plan -destroy
 
   # -----------------------------------------------------------------------
-  # destroy — requer aprovação manual via GitHub Environment "destroy"
+  # destroy — requer aprovação via GitHub Environment "destroy"
   #
-  # Para ativar a proteção:
-  #   GitHub → Settings → Environments → destroy → Required reviewers
-  #   Adicione os usuários que podem aprovar o destroy
+  # Configurar: GitHub → Settings → Environments → destroy → Required reviewers
   # -----------------------------------------------------------------------
   destroy-approval:
     name: Aguardando aprovação para destroy
@@ -103,7 +101,7 @@ jobs:
 
       - name: Set up Terragrunt
         run: |
-          curl -Lo terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v0.67.0/terragrunt_linux_amd64
+          curl -Lo terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v1.0.3/terragrunt_linux_amd64
           chmod +x terragrunt
           sudo mv terragrunt /usr/local/bin/
           terragrunt --version
@@ -117,6 +115,4 @@ jobs:
 
       - name: Terragrunt destroy
         working-directory: environments/dev
-        run: terragrunt run-all destroy --terragrunt-non-interactive
-        env:
-          TF_INPUT: "false"
+        run: terragrunt run --all destroy

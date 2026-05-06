@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /home/user1/k8sadmin-aws rm -r --cached '*/.terragrunt-cache')"
+    ]
+  }
+}

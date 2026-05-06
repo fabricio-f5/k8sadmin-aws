@@ -1,6 +1,1 @@
 k8s_version: "1.29"
-
-# URL do script de instalação do Kiro Agent.
-# Defina antes de rodar o playbook. Ex:
-#   kiro_install_url: "https://example.com/kiro/install.sh"
-# kiro_install_url: ""
