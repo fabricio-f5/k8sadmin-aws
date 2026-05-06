@@ -1,0 +1,135 @@
+name: ansible
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Ação a executar"
+        required: true
+        default: "check"
+        type: choice
+        options:
+          - check
+          - site
+          - reset
+
+env:
+  ANSIBLE_FORCE_COLOR: "true"
+  ANSIBLE_HOST_KEY_CHECKING: "False"
+
+jobs:
+  # -----------------------------------------------------------------------
+  # check / site — sem aprovação
+  # -----------------------------------------------------------------------
+  run:
+    name: ${{ github.event.inputs.action }}
+    if: github.event.inputs.action != 'reset'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    concurrency:
+      group: k8sadmin-aws-ansible
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible and dependencies
+        run: pip install ansible boto3 botocore
+
+      - name: Install Ansible collections
+        working-directory: ansible
+        run: ansible-galaxy collection install -r requirements.yml
+
+      - name: Install session-manager-plugin
+        run: |
+          curl -sSL "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" \
+            -o session-manager-plugin.deb
+          sudo dpkg -i session-manager-plugin.deb
+          session-manager-plugin --version
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          role-session-name: GitHubActions-Ansible-${{ github.run_id }}
+
+      - name: Generate inventory
+        working-directory: ansible
+        run: |
+          sed "s|<NOME_DO_BUCKET>|${{ secrets.AWS_SSM_BUCKET_NAME }}|g" \
+            inventory/aws_ec2.example.yml > inventory/aws_ec2.yml
+
+      - name: Ansible check (dry-run)
+        if: github.event.inputs.action == 'check'
+        working-directory: ansible
+        run: ansible-playbook playbooks/site.yml --check --diff
+
+      - name: Ansible site
+        if: github.event.inputs.action == 'site'
+        working-directory: ansible
+        run: ansible-playbook playbooks/site.yml
+
+  # -----------------------------------------------------------------------
+  # reset — requer aprovação via GitHub Environment "reset"
+  #
+  # Configurar: GitHub → Settings → Environments → reset → Required reviewers
+  # -----------------------------------------------------------------------
+  reset-approval:
+    name: Aguardando aprovação para reset
+    if: github.event.inputs.action == 'reset'
+    runs-on: ubuntu-latest
+    environment: reset
+    permissions:
+      id-token: write
+      contents: read
+    concurrency:
+      group: k8sadmin-aws-ansible
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible and dependencies
+        run: pip install ansible boto3 botocore
+
+      - name: Install Ansible collections
+        working-directory: ansible
+        run: ansible-galaxy collection install -r requirements.yml
+
+      - name: Install session-manager-plugin
+        run: |
+          curl -sSL "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" \
+            -o session-manager-plugin.deb
+          sudo dpkg -i session-manager-plugin.deb
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          role-session-name: GitHubActions-Ansible-${{ github.run_id }}
+
+      - name: Generate inventory
+        working-directory: ansible
+        run: |
+          sed "s|<NOME_DO_BUCKET>|${{ secrets.AWS_SSM_BUCKET_NAME }}|g" \
+            inventory/aws_ec2.example.yml > inventory/aws_ec2.yml
+
+      - name: Ansible reset
+        working-directory: ansible
+        run: ansible-playbook playbooks/reset.yml

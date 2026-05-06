@@ -257,7 +257,20 @@ k8sadmin-aws/
 
 ## CI/CD
 
-O workflow `.github/workflows/k8sadmin-aws.yaml` é acionado manualmente (`workflow_dispatch`) com quatro opções:
+### Secrets necessários
+
+Configure em **Settings → Secrets and variables → Actions**:
+
+| Secret | Descrição |
+|---|---|
+| `AWS_ROLE_ARN` | ARN da IAM role criada no bootstrap (`bootstrap/oidc`) |
+| `AWS_SSM_BUCKET_NAME` | Nome do bucket S3 usado pelo Ansible SSM para transferência de arquivos |
+
+---
+
+### Workflow: Infraestrutura (`k8sadmin-aws.yaml`)
+
+Acionado manualmente via `workflow_dispatch`. Gerencia os recursos AWS via Terragrunt.
 
 | Ação | O que faz |
 |---|---|
@@ -266,17 +279,27 @@ O workflow `.github/workflows/k8sadmin-aws.yaml` é acionado manualmente (`workf
 | `plan-destroy` | Mostra o que seria destruído sem executar |
 | `destroy` | Destrói todos os recursos (requer aprovação manual) |
 
-A autenticação com a AWS usa **OIDC** — o GitHub gera um token JWT que a AWS valida diretamente, sem nenhuma chave de acesso armazenada. Configure o secret `AWS_ROLE_ARN` com o ARN da role criada no step de bootstrap.
+### Workflow: Ansible (`ansible.yaml`)
 
-### Proteção do destroy
+Acionado manualmente via `workflow_dispatch`. Configura o cluster Kubernetes nas instâncias EC2.
 
-O job `destroy` usa um **GitHub Environment** com aprovação obrigatória. Antes de usar, configure:
+| Ação | O que faz |
+|---|---|
+| `check` | Dry-run com `--check --diff`: mostra o que seria alterado sem executar |
+| `site` | Executa o playbook completo: instala e configura o cluster |
+| `reset` | Destroi e limpa o cluster (requer aprovação manual) |
 
-1. No GitHub: **Settings → Environments → New environment** → nome: `destroy`
-2. Marque **Required reviewers** e adicione os aprovadores
-3. Salve a proteção
+A autenticação com a AWS usa **OIDC** nos dois workflows — o GitHub gera um token JWT que a AWS valida diretamente, sem nenhuma chave de acesso armazenada.
 
-Ao disparar o workflow com `destroy`, o GitHub pausará o job e enviará notificação aos revisores. Somente após aprovação a destruição é executada.
+### Proteção das ações destrutivas
+
+Os jobs `destroy` (infra) e `reset` (Ansible) usam **GitHub Environments** com aprovação obrigatória. Configure antes de usar:
+
+1. No GitHub: **Settings → Environments → New environment**
+2. Crie dois environments: `destroy` e `reset`
+3. Em cada um: marque **Required reviewers** e adicione os aprovadores
+
+Ao disparar essas ações, o GitHub pausará o job e notificará os revisores. A execução só ocorre após aprovação explícita.
 
 ---
 
