@@ -1,14 +1,14 @@
-# OIDC Provider  registra o GitHub como IdP confiável na conta AWS
+# OIDC Provider — registra o GitHub como IdP confiável na conta AWS
+#
+# O provider é global por conta AWS (só pode existir um por URL).
+# Se já existe de outro projeto, use create_oidc_provider = false
+# no terragrunt.hcl para referenciar o existente via data source.
 
 resource "aws_iam_openid_connect_provider" "github" {
-  url = "https://token.actions.githubusercontent.com"
+  count = var.create_oidc_provider ? 1 : 0
 
-  # "sts.amazonaws.com" é o audience que o GitHub envia no JWT
-  # A AWS valida esse valor contra o campo "aud" do token
-  client_id_list = ["sts.amazonaws.com"]
-
-  # Thumbprint do certificado TLS do endpoint do GitHub
-  # Usado pela AWS para validar a cadeia de confiança do OIDC
+  url             = "https://token.actions.githubusercontent.com"
+  client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = var.thumbprint_list
 
   tags = {
@@ -16,16 +16,26 @@ resource "aws_iam_openid_connect_provider" "github" {
   }
 
   lifecycle {
-    prevent_destroy = true # ← impede destroy acidental
+    prevent_destroy = true
   }
 }
 
+data "aws_iam_openid_connect_provider" "github" {
+  count = var.create_oidc_provider ? 0 : 1
+  url   = "https://token.actions.githubusercontent.com"
+}
 
-# IAM Role  assumida pelo GitHub Actions via OIDC
+locals {
+  oidc_provider_arn = var.create_oidc_provider ? aws_iam_openid_connect_provider.github[0].arn : data.aws_iam_openid_connect_provider.github[0].arn
+  oidc_provider_url = var.create_oidc_provider ? aws_iam_openid_connect_provider.github[0].url : data.aws_iam_openid_connect_provider.github[0].url
+}
+
+
+# IAM Role — assumida pelo GitHub Actions via OIDC
 
 resource "aws_iam_role" "github_actions" {
   name        = var.role_name
-  description = "Role assumida pelo GitHub Actions via OIDC  repo: ${var.github_repo}"
+  description = "Role assumida pelo GitHub Actions via OIDC - repo: ${var.github_repo}"
   path        = "/ci/"
 
   assume_role_policy = jsonencode({
@@ -35,17 +45,14 @@ resource "aws_iam_role" "github_actions" {
         Sid    = "AllowGitHubOIDC"
         Effect = "Allow"
         Principal = {
-          # Referência direta ao provider criado acima
-          Federated = aws_iam_openid_connect_provider.github.arn
+          Federated = local.oidc_provider_arn
         }
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           StringEquals = {
-            # "aud"  valida que o token foi emitido para a AWS
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           }
           StringLike = {
-            # "sub"  restringe ao repo e ref configurados
             "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:${var.github_ref}"
           }
         }
@@ -58,9 +65,6 @@ resource "aws_iam_role" "github_actions" {
   }
 }
 
-# -----------------------------------------------------------------------------
-# Policy Attachments  permissões que o GitHub Actions terá na AWS
-# -----------------------------------------------------------------------------
 resource "aws_iam_role_policy_attachment" "extra_policies" {
   for_each = toset(var.policy_arns)
 

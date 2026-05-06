@@ -2,7 +2,7 @@
 
 resource "aws_iam_role" "ec2" {
   name        = "${var.instance_name}-ec2-role"
-  description = "Role da EC2 ${var.instance_name}  permite pull de imagens no ECR"
+  description = "Role da EC2 ${var.instance_name} - permite pull de imagens no ECR"
   path        = "/ec2/"
 
   assume_role_policy = jsonencode({

@@ -1,6 +1,12 @@
 
 # Variáveis do módulo aws-iam-oidc-github
 
+variable "create_oidc_provider" {
+  description = "Se false, usa o OIDC provider já existente na conta (EntityAlreadyExists) em vez de criar um novo."
+  type        = bool
+  default     = true
+}
+
 variable "github_repo" {
   description = "Repositório GitHub no formato 'org/repo'. Ex: fabricio-f5/hands-on-satubinha-iac"
   type        = string
