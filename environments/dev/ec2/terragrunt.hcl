@@ -29,7 +29,7 @@ dependency "network" {
   mock_outputs = {
     subnet_id = "subnet-mock"
   }
-  mock_outputs_allowed_terraform_commands = ["init", "plan"]
+  mock_outputs_allowed_terraform_commands = ["init", "plan", "apply"]
 }
 
 # ------------------------------------------------------------
@@ -41,7 +41,7 @@ dependency "sg" {
   mock_outputs = {
     sg_id = "sg-mock"
   }
-  mock_outputs_allowed_terraform_commands = ["init", "plan"]
+  mock_outputs_allowed_terraform_commands = ["init", "plan", "apply"]
 }
 
 dependency "iam" {
@@ -50,7 +50,7 @@ dependency "iam" {
   mock_outputs = {
     instance_profile_name = "mock-profile"
   }
-  mock_outputs_allowed_terraform_commands = ["init", "plan"]
+  mock_outputs_allowed_terraform_commands = ["init", "plan", "apply"]
 }
 
 # ------------------------------------------------------------
