@@ -16,3 +16,31 @@
   become: yes
   roles:
     - k8s_worker
+
+- name: Ingress Controller setup
+  hosts: master
+  become: yes
+  tasks:
+    - name: Verificar se nginx ingress já está instalado
+      command: kubectl get ns ingress-nginx
+      environment:
+        KUBECONFIG: /root/.kube/config
+      register: ingress_ns
+      failed_when: false
+      changed_when: false
+
+    - name: Instalar nginx Ingress Controller (baremetal/NodePort)
+      command: >
+        kubectl apply -f
+        https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/baremetal/deploy.yaml
+      environment:
+        KUBECONFIG: /root/.kube/config
+      when: ingress_ns.rc != 0
+
+    - name: Aguardar Ingress Controller ficar pronto
+      command: >
+        kubectl rollout status deployment/ingress-nginx-controller
+        -n ingress-nginx --timeout=120s
+      environment:
+        KUBECONFIG: /root/.kube/config
+      when: ingress_ns.rc != 0

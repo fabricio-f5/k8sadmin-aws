@@ -7,7 +7,6 @@ resource "aws_security_group" "this" {
     Name = var.name
   }
 
-
   # ------------------------------------------------------------
   # Kubernetes API Server (master)
   # ------------------------------------------------------------
@@ -53,7 +52,26 @@ resource "aws_security_group" "this" {
   }
 
   # ------------------------------------------------------------
-  # Comunicação entre nodes (ESSENCIAL)
+  # Ingress Controller — HTTP/HTTPS via futura ALB
+  # ------------------------------------------------------------
+  ingress {
+    description = "HTTP Ingress"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  ingress {
+    description = "HTTPS Ingress"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  # ------------------------------------------------------------
+  # Comunicação entre nodes (ESSENCIAL para CNI e pods)
   # ------------------------------------------------------------
   ingress {
     description = "All traffic between cluster nodes"
@@ -64,7 +82,7 @@ resource "aws_security_group" "this" {
   }
 
   # ------------------------------------------------------------
-  # EGRESS (internet)
+  # EGRESS (internet via NAT)
   # ------------------------------------------------------------
   egress {
     description = "All IPv4 outbound"
@@ -72,13 +90,5 @@ resource "aws_security_group" "this" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    description      = "All IPv6 outbound"
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    ipv6_cidr_blocks = ["::/0"]
   }
 }

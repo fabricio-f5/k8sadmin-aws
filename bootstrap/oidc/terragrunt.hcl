@@ -25,5 +25,6 @@ inputs = {
     "arn:aws:iam::aws:policy/AmazonS3FullAccess",        # Terraform state + módulo S3
     "arn:aws:iam::aws:policy/IAMFullAccess",             # Criar roles e instance profiles
     "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess",  # Lock do Terraform state
+    "arn:aws:iam::aws:policy/AmazonSSMFullAccess",       # Ansible via SSM + StartSession
   ]
 }

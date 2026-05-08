@@ -67,12 +67,8 @@ cmd_start() {
 
   [[ ! -s "${KUBECONFIG_PATH}" ]] && err "Kubeconfig vazio. Verifique se o cluster foi inicializado."
 
-  # 3. Ajustar server e desabilitar TLS verify para localhost
+  # 3. Ajustar server para 127.0.0.1 (127.0.0.1 está no SAN do cert desde kubeadm init)
   sed -i "s|server: https://.*:${REMOTE_PORT}|server: https://127.0.0.1:${LOCAL_PORT}|" "${KUBECONFIG_PATH}"
-  # Adiciona insecure-skip-tls-verify abaixo da linha do server (cert SAN não inclui 127.0.0.1)
-  sed -i '/server: https:\/\/127.0.0.1/a\    insecure-skip-tls-verify: true' "${KUBECONFIG_PATH}"
-  # Remove certificate-authority-data se existir (conflita com insecure)
-  sed -i '/certificate-authority-data:/d' "${KUBECONFIG_PATH}"
 
   log "Kubeconfig salvo em ${KUBECONFIG_PATH}"
 
