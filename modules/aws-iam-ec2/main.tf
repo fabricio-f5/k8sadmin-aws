@@ -35,6 +35,32 @@ resource "aws_iam_role_policy_attachment" "policies" {
 }
 
 
+# Permissão inline para o SSM gravar/ler arquivos de sessão no bucket dedicado
+resource "aws_iam_role_policy" "ssm_bucket" {
+  name = "ssm-s3-session-access"
+  role = aws_iam_role.ec2.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "SSMBucketAccess"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          var.ssm_bucket_arn,
+          "${var.ssm_bucket_arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
 # Instance Profile  wrapper obrigatório para associar a Role à EC2
 # A EC2 não referencia a Role diretamente  sempre via Instance Profile
 
